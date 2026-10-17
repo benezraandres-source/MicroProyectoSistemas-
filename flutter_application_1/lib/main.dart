@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'pantallas/puzzle_board.dart';
+import 'screens/puzzle_board.dart';
 
 void main() {
   runApp(const MiJuegoPuzzle());
