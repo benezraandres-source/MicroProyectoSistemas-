@@ -1,0 +1,76 @@
+name: Flutter Web y PWA
+on:
+  push:
+    branches: [main, Diego]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Dependencias Flutter
+        working-directory: flutter_application_1
+        run: flutter pub get
+      - name: Análisis estático
+        working-directory: flutter_application_1
+        run: flutter analyze
+      - name: Pruebas Flutter
+        working-directory: flutter_application_1
+        run: flutter test
+      - name: Compilar web con recursos locales
+        working-directory: flutter_application_1
+        run: flutter build web --release --no-web-resources-cdn --base-href /MicroProyectoSistemas-/
+      - name: Generar caché sin conexión
+        run: python scripts/prepare_pwa.py
+      - name: Instalar comprobaciones de navegador
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Verificar instalación y funcionamiento offline
+        run: npm run test:pwa
+      - name: Capturas de verificación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-pwa
+          path: test-results/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: flutter_application_1/build/web
+
+  desplegar:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verificar
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Desplegar GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
