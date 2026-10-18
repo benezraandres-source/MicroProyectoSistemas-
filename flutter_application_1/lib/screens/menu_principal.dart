@@ -16,12 +16,12 @@ class MenuPrincipal extends StatefulWidget {
 }
 
 class _MenuPrincipalState extends State<MenuPrincipal> {
-  bool _opening = false;
-  void _open(Widget page) =>
+  bool _abriendoPartida = false;
+  void _abrirPantalla(Widget page) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
-  Future<void> _play() async {
-    if (_opening) return;
-    setState(() => _opening = true);
+  Future<void> _jugar() async {
+    if (_abriendoPartida) return;
+    setState(() => _abriendoPartida = true);
     try {
       var size = widget.controller.configuracion.dificultad;
       if (size == null) {
@@ -35,7 +35,7 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Elige tu primer reto',
+                    'Selecciona la dificultad',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 20),
@@ -57,11 +57,13 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
         );
       }
       if (!mounted) return;
-      _open(PuzzleBoard(gridSize: size, controller: widget.controller));
+      _abrirPantalla(
+        PuzzleBoard(gridSize: size, controller: widget.controller),
+      );
     } catch (_) {
       if (mounted) avisarError(context);
     } finally {
-      if (mounted) setState(() => _opening = false);
+      if (mounted) setState(() => _abriendoPartida = false);
     }
   }
 
@@ -100,8 +102,9 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                           IconButton(
                             tooltip: 'Créditos',
                             icon: const Icon(Icons.info_outline),
-                            onPressed: () =>
-                                _open(const InformacionScreen(creditos: true)),
+                            onPressed: () => _abrirPantalla(
+                              const InformacionScreen(creditos: true),
+                            ),
                           ),
                         ],
                       ),
@@ -124,7 +127,7 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'ORDENA. DESLIZA. SUPÉRATE.',
+                              'ROMPECABEZAS DESLIZANTE',
                               style: TextStyle(
                                 color: colors.onPrimaryContainer,
                                 fontWeight: FontWeight.w700,
@@ -134,7 +137,7 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Cada pieza\ntiene su lugar.',
+                              '15-Puzzle',
                               style: Theme.of(context).textTheme.displaySmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.w800,
@@ -144,21 +147,21 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Encuentra el orden, mejora tu tiempo y conquista tu próximo reto.',
+                              'Ordena las piezas usando el espacio vacío.',
                               style: TextStyle(
                                 color: colors.onPrimaryContainer,
                               ),
                             ),
                             const SizedBox(height: 24),
                             FilledButton.icon(
-                              onPressed: _opening ? null : _play,
+                              onPressed: _abriendoPartida ? null : _jugar,
                               icon: const Icon(Icons.play_arrow_rounded),
                               label: const Text('Jugar'),
                             ),
                             const SizedBox(height: 12),
                             Text(
                               size == null
-                                  ? 'Tres dificultades. Tú eliges por dónde empezar.'
+                                  ? 'Selecciona una dificultad para empezar.'
                                   : '${nombreDificultad(size)} · $size × $size · Cambia el nivel en Configuración',
                               style: TextStyle(
                                 color: colors.onPrimaryContainer,
@@ -177,34 +180,34 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                             spacing: 16,
                             runSpacing: 16,
                             children: [
-                              _option(
+                              _opcionMenu(
                                 width,
                                 Icons.emoji_events_outlined,
                                 'Marcadores',
-                                'Tu mejor versión, partida a partida.',
-                                () => _open(
+                                'Mejores tiempos y movimientos.',
+                                () => _abrirPantalla(
                                   MarcadoresScreen(
                                     controller: widget.controller,
                                   ),
                                 ),
                               ),
-                              _option(
+                              _opcionMenu(
                                 width,
                                 Icons.tune_rounded,
                                 'Configuración',
                                 'Elige dificultad, tema y estilo.',
-                                () => _open(
+                                () => _abrirPantalla(
                                   ConfiguracionScreen(
                                     controller: widget.controller,
                                   ),
                                 ),
                               ),
-                              _option(
+                              _opcionMenu(
                                 width,
                                 Icons.touch_app_outlined,
                                 'Cómo jugar',
-                                'Aprende las reglas y encuentra el orden.',
-                                () => _open(const InformacionScreen()),
+                                'Reglas y ejemplo de un tablero resuelto.',
+                                () => _abrirPantalla(const InformacionScreen()),
                               ),
                             ],
                           );
@@ -225,7 +228,7 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                         ),
                       const SizedBox(height: 12),
                       const Text(
-                        'Hecho para pensar a tu ritmo. Sin límite de tiempo.',
+                        'El juego no tiene límite de tiempo.',
                         style: TextStyle(fontSize: 12),
                       ),
                     ],
@@ -238,7 +241,7 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
       );
     },
   );
-  Widget _option(
+  Widget _opcionMenu(
     double width,
     IconData icon,
     String title,

@@ -71,7 +71,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Un espacio vacío. Muchas posibilidades.',
+                'Rompecabezas deslizante',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),

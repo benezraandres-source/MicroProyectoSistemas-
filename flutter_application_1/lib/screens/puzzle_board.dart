@@ -7,6 +7,7 @@ import '../estado/app_controller.dart';
 import '../modelos/configuracion.dart';
 import '../modelos/partida.dart';
 import '../widgets/ficha_puzzle.dart';
+import '../widgets/dialogo_victoria.dart';
 
 class PuzzleBoard extends StatefulWidget {
   const PuzzleBoard({
@@ -25,14 +26,13 @@ class PuzzleBoard extends StatefulWidget {
 
 class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
   late Partida _partida;
-  final Stopwatch _watch = Stopwatch();
-  Timer? _ticker;
-  bool _allowExit = false;
-  bool _askingExit = false;
-  bool _paused = false;
-  bool _finishing = false;
-  bool _savingResult = false;
-  int get _seconds => _watch.elapsed.inSeconds;
+  final Stopwatch _reloj = Stopwatch();
+  Timer? _actualizacionTiempo;
+  bool _permitirSalida = false;
+  bool _confirmandoSalida = false;
+  bool _enPausa = false;
+  bool _finalizando = false;
+  int get _segundos => _reloj.elapsed.inSeconds;
 
   @override
   void initState() {
@@ -44,8 +44,8 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _ticker?.cancel();
-    _watch.stop();
+    _actualizacionTiempo?.cancel();
+    _reloj.stop();
     super.dispose();
   }
 
@@ -54,143 +54,68 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
     if (_partida.movimientos == 0 || _partida.ganada) return;
     final pause = state != AppLifecycleState.resumed;
     if (pause) {
-      _watch.stop();
+      _reloj.stop();
     } else {
-      _watch.start();
+      _reloj.start();
     }
-    if (mounted) setState(() => _paused = pause);
+    if (mounted) setState(() => _enPausa = pause);
   }
 
-  void _move(int index) {
-    if (_paused || _finishing || !_partida.mover(index)) return;
+  void _moverFicha(int index) {
+    if (_enPausa || _finalizando || !_partida.mover(index)) return;
     if (_partida.movimientos == 1) {
-      _watch.start();
-      _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      _reloj.start();
+      _actualizacionTiempo = Timer.periodic(const Duration(milliseconds: 200), (
+        _,
+      ) {
         if (mounted) setState(() {});
       });
     }
     setState(() {});
-    if (_partida.ganada) _finish();
+    if (_partida.ganada) _terminarPartida();
   }
 
-  Future<void> _finish() async {
-    _finishing = true;
-    _savingResult = true;
-    _watch.stop();
-    _ticker?.cancel();
-    bool record = false;
-    bool failed = false;
-    try {
-      record = await widget.controller.registrarVictoria(
-        widget.gridSize,
-        _seconds,
-        _partida.movimientos,
-      );
-    } catch (_) {
-      failed = true;
-    }
-    if (!mounted) return;
-    setState(() => _savingResult = false);
-    await showDialog<void>(
+  Future<void> _terminarPartida() async {
+    _finalizando = true;
+    _reloj.stop();
+    _actualizacionTiempo?.cancel();
+    final accion = await showDialog<AccionVictoria>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) {
-          return PopScope(
-            canPop: false,
-            child: AlertDialog(
-              title: const Text('¡Ganaste!'),
-              icon: const Icon(Icons.emoji_events_rounded, size: 48),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${nombreDificultad(widget.gridSize)} · ${widget.gridSize} × ${widget.gridSize}',
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Tiempo: ${formatearTiempo(_seconds)}'),
-                    Text('Movimientos: ${_partida.movimientos}'),
-                    if (record)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 16),
-                        child: Text(
-                          '¡Nuevo récord!',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    if (failed) ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Ganaste, pero el récord no pudo guardarse en este dispositivo.',
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          try {
-                            final saved = await widget.controller
-                                .registrarVictoria(
-                                  widget.gridSize,
-                                  _seconds,
-                                  _partida.movimientos,
-                                );
-                            if (context.mounted) {
-                              update(() {
-                                failed = false;
-                                record = saved;
-                              });
-                            }
-                          } catch (_) {
-                            /* El aviso permanece visible y permite reintentar. */
-                          }
-                        },
-                        child: const Text('Reintentar guardado'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    _leave();
-                  },
-                  child: const Text('Menú principal'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    _reset();
-                  },
-                  child: const Text('Volver a jugar'),
-                ),
-              ],
-            ),
-          );
-        },
+      builder: (_) => DialogoVictoria(
+        controller: widget.controller,
+        dificultad: widget.gridSize,
+        segundos: _segundos,
+        movimientos: _partida.movimientos,
       ),
     );
+    if (!mounted) return;
+    if (accion == AccionVictoria.reiniciar) {
+      _reiniciar();
+    } else if (accion == AccionVictoria.menu) {
+      _salir();
+    }
   }
 
-  void _reset() {
-    _ticker?.cancel();
-    _watch.stop();
-    _watch.reset();
+  void _reiniciar() {
+    _actualizacionTiempo?.cancel();
+    _reloj.stop();
+    _reloj.reset();
     setState(() {
       _partida = Partida(widget.gridSize);
-      _finishing = false;
-      _paused = false;
+      _finalizando = false;
+      _enPausa = false;
     });
   }
 
-  void _leave() {
-    setState(() => _allowExit = true);
+  void _salir() {
+    setState(() => _permitirSalida = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) Navigator.of(context).pop();
     });
   }
 
-  Future<bool> _confirm(String title, String action) async =>
+  Future<bool> _confirmar(String title, String action) async =>
       await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -211,26 +136,26 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
         ),
       ) ??
       false;
-  Future<void> _requestExit() async {
-    if (_askingExit || _finishing) return;
-    _askingExit = true;
-    final yes = await _confirm('¿Salir al menú?', 'Salir');
-    if (mounted && yes) _leave();
-    _askingExit = false;
+  Future<void> _pedirSalida() async {
+    if (_confirmandoSalida || _finalizando) return;
+    _confirmandoSalida = true;
+    final yes = await _confirmar('¿Salir al menú?', 'Salir');
+    if (mounted && yes) _salir();
+    _confirmandoSalida = false;
   }
 
-  Future<void> _restart() async {
+  Future<void> _pedirReinicio() async {
     if (_partida.movimientos == 0 ||
-        await _confirm('¿Reiniciar la partida?', 'Reiniciar')) {
-      if (mounted) _reset();
+        await _confirmar('¿Reiniciar la partida?', 'Reiniciar')) {
+      if (mounted) _reiniciar();
     }
   }
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: _allowExit || (_partida.movimientos == 0 && !_finishing),
+    canPop: _permitirSalida || (_partida.movimientos == 0 && !_finalizando),
     onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) _requestExit();
+      if (!didPop) _pedirSalida();
     },
     child: Scaffold(
       appBar: AppBar(
@@ -240,7 +165,7 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
         actions: [
           IconButton(
             tooltip: 'Reiniciar partida',
-            onPressed: _finishing ? null : _restart,
+            onPressed: _finalizando ? null : _pedirReinicio,
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -255,25 +180,25 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
                 spacing: 24,
                 runSpacing: 8,
                 children: [
-                  _stat(
+                  _indicador(
                     Icons.touch_app_outlined,
                     'Movimientos',
                     '${_partida.movimientos}',
                   ),
-                  _stat(
+                  _indicador(
                     Icons.timer_outlined,
                     'Tiempo',
-                    formatearTiempo(_seconds),
+                    formatearTiempo(_segundos),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                _paused
+                _enPausa
                     ? 'En pausa mientras la aplicación está en segundo plano.'
                     : _partida.movimientos == 0
                     ? 'Toca una pieza junto al espacio vacío para empezar.'
-                    : 'Cada movimiento te acerca al orden.',
+                    : 'Ordena los números y deja el espacio vacío al final.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -314,7 +239,7 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
                                 estilo: widget.controller.configuracion.estilo,
                                 animaciones:
                                     widget.controller.configuracion.animaciones,
-                                alTocar: () => _move(index),
+                                alTocar: () => _moverFicha(index),
                               ),
                             ),
                           ),
@@ -325,7 +250,6 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(height: 12),
-              if (_savingResult) const LinearProgressIndicator(),
               const SizedBox(height: 8),
             ],
           ),
@@ -333,7 +257,7 @@ class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
       ),
     ),
   );
-  Widget _stat(IconData icon, String label, String value) => Row(
+  Widget _indicador(IconData icon, String label, String value) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       Icon(icon, size: 20),

@@ -19,7 +19,7 @@ class FichaPuzzle extends StatefulWidget {
 }
 
 class _FichaPuzzleState extends State<FichaPuzzle> {
-  bool _pressed = false;
+  bool _presionada = false;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -37,11 +37,11 @@ class _FichaPuzzleState extends State<FichaPuzzle> {
       EstiloFicha.retro => const Color(0xff314b39),
       EstiloFicha.minimalista => colors.surfaceContainerHighest,
     };
-    final text = widget.estilo == EstiloFicha.minimalista
-        ? colors.onSurface
-        : widget.estilo == EstiloFicha.retro
-        ? const Color(0xfff7d98b)
-        : Colors.white;
+    final text = switch (widget.estilo) {
+      EstiloFicha.minimalista => colors.onSurface,
+      EstiloFicha.retro => const Color(0xfff7d98b),
+      _ => Colors.white,
+    };
     final animate =
         widget.animaciones && !MediaQuery.disableAnimationsOf(context);
     return Semantics(
@@ -50,7 +50,7 @@ class _FichaPuzzleState extends State<FichaPuzzle> {
       onTap: widget.alTocar,
       child: ExcludeSemantics(
         child: AnimatedScale(
-          scale: _pressed ? 0.94 : 1,
+          scale: _presionada ? 0.94 : 1,
           duration: animate ? const Duration(milliseconds: 120) : Duration.zero,
           child: Material(
             color: color,
@@ -59,7 +59,7 @@ class _FichaPuzzleState extends State<FichaPuzzle> {
             ),
             child: InkWell(
               onTap: widget.alTocar,
-              onHighlightChanged: (v) => setState(() => _pressed = v),
+              onHighlightChanged: (v) => setState(() => _presionada = v),
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.all(4),

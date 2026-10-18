@@ -61,10 +61,10 @@ class _MarcadoresScreenState extends State<MarcadoresScreen> {
       return Pagina(
         titulo: 'Marcadores',
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Pequeños pasos.\nGrandes récords.',
+              'Récords por dificultad',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 12),

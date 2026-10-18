@@ -1,59 +1,55 @@
 # 15-Puzzle Flutter
 
-Rompecabezas deslizante académico para web y móvil. Tres dificultades (3×3, 4×4 y 5×5), tableros resolubles mediante paridad de inversiones y récords locales por dificultad.
+Microproyecto de Sistemas de Información. El juego tiene tableros 3×3, 4×4 y 5×5, récords por dificultad y preferencias guardadas en el dispositivo.
 
-## Requisitos y ejecución en Windows
+## Ejecutar
 
-Este proyecto usa **Flutter 3.47.7 / Dart 3.13.5**. La instalación local está separada en `C:\tools\flutter-puzzle-3.47.7\flutter`: no reemplaza otros SDK ni modifica el PATH global.
+Se necesita **Flutter 3.47.7 con Dart 3.13.5**. Desde `flutter_application_1`:
 
-Desde la raíz del repositorio:
+```sh
+flutter pub get
+flutter run -d chrome
+```
+
+En esta computadora también se puede usar el SDK separado del proyecto, desde la raíz del repositorio:
 
 ```powershell
-.\scripts\flutter.ps1 pub get
 .\scripts\flutter.ps1 run -d chrome
 ```
 
-Si el script está bloqueado por la política de PowerShell, puedes invocarlo con `powershell -ExecutionPolicy Bypass -File .\scripts\flutter.ps1 pub get`, o ejecutar directamente el `flutter.bat` de esa instalación desde `flutter_application_1`.
+El script y `.vscode/settings.json` apuntan a `C:\tools\flutter-puzzle-3.47.7\flutter`. Si se clona en otra computadora, hay que ajustar esa ruta o usar Flutter desde el PATH.
 
-En otro equipo, instala Flutter 3.47.7 desde el archivo oficial y utiliza los comandos normales desde `flutter_application_1`. El ajuste de VS Code de esta copia apunta al SDK local; adáptalo a tu instalación.
+## Qué incluye
 
-## Funcionalidad
+- Menú principal, pantalla de inicio, instrucciones y créditos.
+- Dificultad guardada, tema claro/oscuro/automático y cuatro estilos de fichas.
+- Tableros aleatorios resolubles y cronómetro desde el primer movimiento válido.
+- Confirmación para reiniciar o salir de una partida empezada.
+- Mejor tiempo y menor número de movimientos por dificultad, cada uno con su fecha.
+- Borrado de marcadores con confirmación, sin borrar las preferencias.
+- Instalación como PWA y uso sin conexión después de la primera carga completa.
 
-- Splash con animación y botón Saltar; menú con Jugar, Marcadores, Configuración, Cómo jugar y Créditos.
-- Primera selección de dificultad y reutilización del nivel guardado.
-- Tema claro, oscuro o automático; fichas clásicas, coloridas, retro o minimalistas; animaciones configurables.
-- Movimiento solo entre casillas adyacentes; cronómetro desde el primer movimiento válido y contador de movimientos.
-- Partidas sin límite de tiempo ni condición artificial de derrota. Reiniciar y abandonar una partida iniciada requieren confirmación.
-- Victoria con resumen, dificultad, aviso de récord y opciones de reiniciar o salir al menú.
-- Récord de mejor tiempo y menor número de movimientos **independientes**, con fecha propia para cada marca. Empatar no reemplaza la fecha de un récord.
-- Marcadores por dificultad, mensaje cuando no existen y borrado con confirmación que conserva los ajustes.
-- Datos locales mediante `shared_preferences`: sobreviven a reinicios en el mismo navegador/dispositivo. No existe sincronización entre dispositivos. Borrar los datos del sitio elimina estos registros.
-- Diseño adaptable; el cronómetro se pausa al pasar la app a segundo plano y se libera al abandonar el tablero.
+Los récords de tiempo y movimientos son independientes: pueden venir de partidas distintas. Los datos se guardan con `shared_preferences` en el mismo navegador o dispositivo; no se sincronizan con otros equipos. El juego no tiene límite de tiempo ni condición de derrota. Sonidos y modo imagen son opcionales y no están incluidos.
 
-## Organización
+## Código
 
-- `lib/modelos/`: configuración, marcadores y reglas de una partida.
-- `lib/datos/`: lectura/escritura JSON en almacenamiento local.
-- `lib/estado/`: controlador compartido con `ChangeNotifier`, sin librerías de estado externas.
-- `lib/screens/`: pantallas y navegación.
-- `lib/widgets/`: fichas y contenedores reutilizables.
-- `lib/utils/`: validación matemática de resolubilidad.
+`modelos/` contiene las reglas y los datos; `datos/`, el almacenamiento local; `estado/`, el controlador de preferencias y marcadores. Las pantallas están en `screens/` y los componentes compartidos en `widgets/`. La comprobación de paridad está en `utils/`.
 
-Andrés Benezra desarrolló la lógica matemática y la base del tablero. La rama **Diego** integra menús, preferencias, marcadores, instrucciones, créditos y las correcciones necesarias para completar los flujos. El desarrollo y las revisiones deben reflejarse con commits de valor de ambos integrantes.
+El diálogo de victoria guarda el resultado y permite reintentar si falla el almacenamiento. El tablero se encarga de los movimientos, el cronómetro y el ciclo de la partida.
 
-## Pruebas
+## Comprobar los cambios
 
-```powershell
-.\scripts\flutter.ps1 analyze
-.\scripts\flutter.ps1 test
+Desde `flutter_application_1`:
+
+```sh
+flutter analyze
+flutter test
+flutter build web --release --no-web-resources-cdn --base-href /MicroProyectoSistemas-/
 ```
 
-Las pruebas cubren paridad, generación de las tres dificultades, movimientos inválidos, victoria, persistencia de ajustes, marcas independientes, fallos de escritura, borrado confirmado y pantallas pequeñas.
+Luego, desde la raíz del repositorio:
 
-## Compilación web y PWA sin conexión
-
-```powershell
-.\scripts\flutter.ps1 build web --release --no-web-resources-cdn --base-href /MicroProyectoSistemas-/
+```sh
 python scripts/prepare_pwa.py
 npm ci
 npx playwright install chromium
@@ -61,29 +57,16 @@ npm run test:pwa
 npm run preview
 ```
 
-Si Python no está en el PATH, usa el ejecutable de tu instalación. El generador usa únicamente la biblioteca estándar.
+La vista previa se abre en `http://127.0.0.1:4173/MicroProyectoSistemas-/`. La prueba de navegador comprueba la instalación, los ajustes guardados y la recarga sin red, con el servidor apagado y la caché HTTP desactivada. Las capturas quedan en `test-results/`.
 
-`prepare_pwa.py` inventaría los archivos realmente compilados y genera `build/web/sw.js` con una caché versionada, limitada a la ruta de esta aplicación. CanvasKit y las fuentes se sirven desde el propio sitio para que no dependan de un CDN. El worker se registra en HTTPS o localhost. Tras la primera carga completa y la confirmación «Listo para jugar sin conexión», la aplicación se puede volver a abrir sin red. No basta con ejecutar `flutter run` para comprobarlo: debe probarse la compilación final.
+Para probar el modo offline hay que compilar y ejecutar `prepare_pwa.py`; `flutter run` por sí solo no genera la caché de la PWA. Las fuentes y CanvasKit se incluyen en el sitio, sin depender de un CDN.
 
-`npm run preview` abre un servidor local en `http://127.0.0.1:4173/MicroProyectoSistemas-/`.
+## Publicación
 
-`npm run test:pwa` levanta un servidor temporal en la subruta real, abre Chromium, comprueba el manifiesto, la instalabilidad en Chromium y el worker, verifica ajustes guardados con el plugin web, bloquea recursos externos, desactiva la caché HTTP, apaga el servidor y recarga con la red desconectada. Guarda capturas en `test-results/`.
+[GitHub Pages](https://benezraandres-source.github.io/MicroProyectoSistemas-/)
 
-En Chrome o Edge usa «Instalar aplicación» desde la barra de direcciones/menú. En iPhone/iPad usa Safari → Compartir → Añadir a pantalla de inicio. La experiencia de instalación física en iOS requiere comprobarse en ese dispositivo.
+El workflow `.github/workflows/flutter_web.yml` verifica `Diego`, los pull requests y `main`. Solo publica desde `main`, después de pasar análisis, pruebas y comprobaciones de la PWA. En Settings → Pages, la fuente debe ser **GitHub Actions**.
 
-## GitHub Actions y Pages
+En Chrome o Edge se instala desde el menú del navegador. En Safari de iPhone/iPad, desde Compartir → Añadir a pantalla de inicio; esa instalación debe probarse en un dispositivo iOS.
 
-El workflow está en `.github/workflows/flutter_web.yml`, en la raíz del repositorio. Usa Flutter 3.47.7 y ejecuta análisis, pruebas, build y comprobación offline con Chromium.
-
-- Los pushes a `Diego` y los pull requests a `main` se verifican y generan artefactos.
-- Solo `main` se publica en GitHub Pages, después de pasar las comprobaciones.
-- El propietario debe seleccionar **Settings → Pages → Source → GitHub Actions**. El workflow no modifica esa configuración de la cuenta.
-- Ruta prevista: `https://benezraandres-source.github.io/MicroProyectoSistemas-/`.
-
-Si se cambia el nombre del repositorio, hay que ajustar `--base-href` en el workflow y la ruta usada por `scripts/pwa_smoke.mjs`.
-
-## Aclaraciones del enunciado
-
-El documento restringe inicialmente el almacenamiento al High Score, pero luego exige persistir también preferencias; aquí se implementan ambos requisitos explícitos. También menciona persistencia entre dispositivos «solo local»: se interpreta como persistencia por dispositivo, sin añadir cuentas ni backend. Los sonidos y el modo imagen son opcionales y no se incluyen. El despliegue se trata como requisito, aunque también aparezca en la sección de bonus.
-
-Las fuentes Roboto incluidas conservan su licencia en `flutter_application_1/assets/fonts/roboto_license.txt`.
+Las fuentes Roboto conservan su licencia en `flutter_application_1/assets/fonts/roboto_license.txt`.

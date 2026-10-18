@@ -17,29 +17,29 @@ class Arranque extends StatefulWidget {
 }
 
 class _ArranqueState extends State<Arranque> {
-  late Future<AppController> _loading;
-  AppController? _controller;
+  late Future<AppController> _carga;
+  AppController? _controlador;
   @override
   void initState() {
     super.initState();
-    _loading = _load();
+    _carga = _cargarPreferencias();
   }
 
-  Future<AppController> _load() async {
+  Future<AppController> _cargarPreferencias() async {
     final controller = AppController(await PreferenciasUsuario.abrir());
-    _controller = controller;
+    _controlador = controller;
     return controller;
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controlador?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<AppController>(
-    future: _loading,
+    future: _carga,
     builder: (context, snapshot) {
       if (snapshot.hasData) return MiJuegoPuzzle(controller: snapshot.data!);
       return MaterialApp(
@@ -62,7 +62,8 @@ class _ArranqueState extends State<Arranque> {
                         ),
                         const SizedBox(height: 16),
                         FilledButton(
-                          onPressed: () => setState(() => _loading = _load()),
+                          onPressed: () =>
+                              setState(() => _carga = _cargarPreferencias()),
                           child: const Text('Reintentar'),
                         ),
                       ],
