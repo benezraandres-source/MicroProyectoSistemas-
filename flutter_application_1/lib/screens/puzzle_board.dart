@@ -1,200 +1,274 @@
-// lib/pantallas/puzzle_board.dart
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
-// Importamos nuestros propios módulos separados
-import '../utils/matematicas_puzzle.dart';
+import '../estado/app_controller.dart';
+import '../modelos/configuracion.dart';
+import '../modelos/partida.dart';
 import '../widgets/ficha_puzzle.dart';
+import '../widgets/dialogo_victoria.dart';
 
 class PuzzleBoard extends StatefulWidget {
+  const PuzzleBoard({
+    super.key,
+    required this.gridSize,
+    required this.controller,
+    this.initialBoard,
+  });
   final int gridSize;
-
-  const PuzzleBoard({Key? key, required this.gridSize}) : super(key: key);
-
+  final AppController controller;
+  @visibleForTesting
+  final List<int>? initialBoard;
   @override
   State<PuzzleBoard> createState() => _PuzzleBoardState();
 }
 
-class _PuzzleBoardState extends State<PuzzleBoard> {
-  List<int> matriz = [];
-  int posicionVacia = 0;
-  int movimientos = 0;
-
-  Timer? cronometro;
-  int segundos = 0;
-  bool juegoIniciado = false;
+class _PuzzleBoardState extends State<PuzzleBoard> with WidgetsBindingObserver {
+  late Partida _partida;
+  final Stopwatch _reloj = Stopwatch();
+  Timer? _actualizacionTiempo;
+  bool _permitirSalida = false;
+  bool _confirmandoSalida = false;
+  bool _enPausa = false;
+  bool _finalizando = false;
+  int get _segundos => _reloj.elapsed.inSeconds;
 
   @override
   void initState() {
     super.initState();
-    _armarTablero();
+    WidgetsBinding.instance.addObserver(this);
+    _partida = Partida(widget.gridSize, tablero: widget.initialBoard);
   }
 
   @override
   void dispose() {
-    cronometro?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _actualizacionTiempo?.cancel();
+    _reloj.stop();
     super.dispose();
   }
 
-  void _armarTablero() {
-    int totalCasillas = widget.gridSize * widget.gridSize;
-    matriz = List.generate(totalCasillas - 1, (i) => i + 1);
-    matriz.add(0);
-
-    Random rng = Random();
-    do {
-      matriz.shuffle(rng);
-      posicionVacia = matriz.indexOf(0);
-    // Usamos el validador matemático desde la carpeta utils
-    } while (!MatematicasPuzzle.esResoluble(matriz, widget.gridSize, posicionVacia));
-
-    movimientos = 0;
-    segundos = 0;
-    juegoIniciado = false;
-    cronometro?.cancel();
-    setState(() {});
-  }
-
-  void _empezarTiempo() {
-    juegoIniciado = true;
-    cronometro = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() => segundos++);
-    });
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_partida.movimientos == 0 || _partida.ganada) return;
+    final pause = state != AppLifecycleState.resumed;
+    if (pause) {
+      _reloj.stop();
+    } else {
+      _reloj.start();
+    }
+    if (mounted) setState(() => _enPausa = pause);
   }
 
   void _moverFicha(int index) {
-    if (!juegoIniciado) _empezarTiempo();
-
-    int filaTocada = index ~/ widget.gridSize;
-    int colTocada = index % widget.gridSize;
-    int filaVacia = posicionVacia ~/ widget.gridSize;
-    int colVacia = posicionVacia % widget.gridSize;
-
-    bool esVecina = (filaTocada == filaVacia && (colTocada - colVacia).abs() == 1) ||
-                    (colTocada == colVacia && (filaTocada - filaVacia).abs() == 1);
-
-    if (esVecina) {
-      setState(() {
-        matriz[posicionVacia] = matriz[index];
-        matriz[index] = 0;
-        posicionVacia = index;
-        movimientos++;
+    if (_enPausa || _finalizando || !_partida.mover(index)) return;
+    if (_partida.movimientos == 1) {
+      _reloj.start();
+      _actualizacionTiempo = Timer.periodic(const Duration(milliseconds: 200), (
+        _,
+      ) {
+        if (mounted) setState(() {});
       });
-      _comprobarVictoria();
     }
+    setState(() {});
+    if (_partida.ganada) _terminarPartida();
   }
 
-  void _comprobarVictoria() {
-    bool gano = true;
-    for (int i = 0; i < matriz.length - 1; i++) {
-      if (matriz[i] != i + 1) { gano = false; break; }
-    }
-    if (gano && matriz.last == 0) {
-      cronometro?.cancel();
-      juegoIniciado = false;
-      _mostrarMensajeVictoria();
-    }
-  }
-
-  void _mostrarMensajeVictoria() {
-    showDialog(
+  Future<void> _terminarPartida() async {
+    _finalizando = true;
+    _reloj.stop();
+    _actualizacionTiempo?.cancel();
+    final accion = await showDialog<AccionVictoria>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Text("¡Felicidades, Ganaste! 🎉", textAlign: TextAlign.center),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Movimientos: $movimientos"),
-            Text("Tiempo: ${_formatearTiempo(segundos)}"),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () { Navigator.pop(ctx); _armarTablero(); },
-            child: const Text("Volver a jugar"),
-          ),
-        ],
+      builder: (_) => DialogoVictoria(
+        controller: widget.controller,
+        dificultad: widget.gridSize,
+        segundos: _segundos,
+        movimientos: _partida.movimientos,
       ),
     );
+    if (!mounted) return;
+    if (accion == AccionVictoria.reiniciar) {
+      _reiniciar();
+    } else if (accion == AccionVictoria.menu) {
+      _salir();
+    }
   }
 
-  String _formatearTiempo(int seg) {
-    int m = seg ~/ 60;
-    int s = seg % 60;
-    return '${m < 10 ? '0$m' : m}:${s < 10 ? '0$s' : s}';
+  void _reiniciar() {
+    _actualizacionTiempo?.cancel();
+    _reloj.stop();
+    _reloj.reset();
+    setState(() {
+      _partida = Partida(widget.gridSize);
+      _finalizando = false;
+      _enPausa = false;
+    });
+  }
+
+  void _salir() {
+    setState(() => _permitirSalida = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  Future<bool> _confirmar(String title, String action) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: const Text(
+            'Se descartará la partida actual. Los récords guardados se conservan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Seguir jugando'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(action),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  Future<void> _pedirSalida() async {
+    if (_confirmandoSalida || _finalizando) return;
+    _confirmandoSalida = true;
+    final yes = await _confirmar('¿Salir al menú?', 'Salir');
+    if (mounted && yes) _salir();
+    _confirmandoSalida = false;
+  }
+
+  Future<void> _pedirReinicio() async {
+    if (_partida.movimientos == 0 ||
+        await _confirmar('¿Reiniciar la partida?', 'Reiniciar')) {
+      if (mounted) _reiniciar();
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  Widget build(BuildContext context) => PopScope(
+    canPop: _permitirSalida || (_partida.movimientos == 0 && !_finalizando),
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _pedirSalida();
+    },
+    child: Scaffold(
       appBar: AppBar(
-        title: Text('Rompecabezas ${widget.gridSize}x${widget.gridSize}'),
-        centerTitle: true,
+        title: Text(
+          '${nombreDificultad(widget.gridSize)} · ${widget.gridSize} × ${widget.gridSize}',
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _armarTablero),
+          IconButton(
+            tooltip: 'Reiniciar partida',
+            onPressed: _finalizando ? null : _pedirReinicio,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Card(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              elevation: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(children: [const Text("Movimientos", style: TextStyle(color: Colors.grey)), Text("$movimientos", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold))]),
-                    Column(children: [const Text("Tiempo", style: TextStyle(color: Colors.grey)), Text(_formatearTiempo(segundos), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold))]),
-                  ],
-                ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 24,
+                runSpacing: 8,
+                children: [
+                  _indicador(
+                    Icons.touch_app_outlined,
+                    'Movimientos',
+                    '${_partida.movimientos}',
+                  ),
+                  _indicador(
+                    Icons.timer_outlined,
+                    'Tiempo',
+                    formatearTiempo(_segundos),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: Center(
+              const SizedBox(height: 8),
+              Text(
+                _enPausa
+                    ? 'En pausa mientras la aplicación está en segundo plano.'
+                    : _partida.movimientos == 0
+                    ? 'Toca una pieza junto al espacio vacío para empezar.'
+                    : 'Ordena los números y deja el espacio vacío al final.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    double tamanoTablero = min(constraints.maxWidth, constraints.maxHeight) * 0.9;
-                    if (tamanoTablero > 500) tamanoTablero = 500;
-
-                    return SizedBox(
-                      width: tamanoTablero,
-                      height: tamanoTablero,
-                      child: Container(
-                        padding: const EdgeInsets.all(6.0),
-                        decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(12)),
-                        child: GridView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: widget.gridSize,
-                            crossAxisSpacing: 6.0,
-                            mainAxisSpacing: 6.0,
+                    final side = min(
+                      560.0,
+                      min(constraints.maxWidth, constraints.maxHeight),
+                    );
+                    return Center(
+                      child: SizedBox(
+                        width: side,
+                        height: side,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          itemCount: matriz.length,
-                          itemBuilder: (context, idx) {
-                            // Usamos el widget de ficha visual separado en la carpeta widgets
-                            return FichaPuzzle(
-                              numero: matriz[idx],
-                              alTocar: () => _moverFicha(idx),
-                            );
-                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: GridView.builder(
+                              padding: EdgeInsets.zero,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: widget.gridSize,
+                                    crossAxisSpacing: 6,
+                                    mainAxisSpacing: 6,
+                                  ),
+                              itemCount: _partida.fichas.length,
+                              itemBuilder: (context, index) => FichaPuzzle(
+                                key: ValueKey('tile-$index'),
+                                numero: _partida.fichas[index],
+                                estilo: widget.controller.configuracion.estilo,
+                                animaciones:
+                                    widget.controller.configuracion.animaciones,
+                                alTocar: () => _moverFicha(index),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     );
                   },
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
-    );
-  }
+    ),
+  );
+  Widget _indicador(IconData icon, String label, String value) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 20),
+      const SizedBox(width: 10),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text(value, style: Theme.of(context).textTheme.headlineSmall),
+        ],
+      ),
+    ],
+  );
 }

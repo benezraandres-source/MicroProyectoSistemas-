@@ -1,20 +1,29 @@
-// lib/datos/preferencias_usuario.dart
-// Nota para Diego: Aquí debes usar shared_preferences o get_storage
-// para guardar y leer los datos locales del dispositivo.
+import 'dart:convert';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Un documento por operación evita guardar resultados parcialmente.
 class PreferenciasUsuario {
-  
-  // Función de ejemplo para guardar el mejor tiempo
-  static Future<void> guardarMejorTiempo(int segundos, int dificultad) async {
-    // Diego: Implementar la lógica con shared_preferences aquí
+  PreferenciasUsuario(this._preferences);
+  final SharedPreferences _preferences;
+
+  static Future<PreferenciasUsuario> abrir() async =>
+      PreferenciasUsuario(await SharedPreferences.getInstance());
+
+  Map<String, dynamic> leer(String key) {
+    final raw = _preferences.get('puzzle.$key');
+    if (raw is! String) return {};
+    try {
+      final value = jsonDecode(raw);
+      return value is Map<String, dynamic> ? value : {};
+    } on FormatException {
+      return {};
+    }
   }
 
-  // Función de ejemplo para leer el mejor tiempo
-  static Future<int> obtenerMejorTiempo(int dificultad) async {
-    // Diego: Leer el valor guardado, por ahora retorna 0
-    return 0; 
+  Future<void> guardar(String key, Map<String, dynamic> value) async {
+    if (!await _preferences.setString('puzzle.$key', jsonEncode(value))) {
+      throw StateError('No se pudieron guardar los datos en este dispositivo.');
+    }
   }
-
-  // Diego: Agrega aquí también las funciones para guardar Tema (Claro/Oscuro) 
-  // y guardar los movimientos.
 }

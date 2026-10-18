@@ -1,40 +1,84 @@
-// lib/widgets/ficha_puzzle.dart
 import 'package:flutter/material.dart';
 
-class FichaPuzzle extends StatelessWidget {
-  final int numero;
-  final VoidCallback alTocar;
+import '../modelos/configuracion.dart';
 
+class FichaPuzzle extends StatefulWidget {
   const FichaPuzzle({
-    Key? key,
+    super.key,
     required this.numero,
     required this.alTocar,
-  }) : super(key: key);
+    this.estilo = EstiloFicha.clasico,
+    this.animaciones = true,
+  });
+  final int numero;
+  final VoidCallback alTocar;
+  final EstiloFicha estilo;
+  final bool animaciones;
+  @override
+  State<FichaPuzzle> createState() => _FichaPuzzleState();
+}
 
+class _FichaPuzzleState extends State<FichaPuzzle> {
+  bool _presionada = false;
   @override
   Widget build(BuildContext context) {
-    if (numero == 0) {
-      return const SizedBox.shrink(); // El espacio vacío no dibuja nada
+    final colors = Theme.of(context).colorScheme;
+    if (widget.numero == 0) {
+      return Semantics(label: 'Espacio vacío', child: const SizedBox.expand());
     }
-
-    return InkWell(
-      onTap: alTocar,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.indigoAccent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(1, 2))
-          ],
-        ),
-        child: Center(
-          child: Text(
-            '$numero',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+    final color = switch (widget.estilo) {
+      EstiloFicha.clasico => colors.primary,
+      EstiloFicha.colorido => HSLColor.fromAHSL(
+        1,
+        ((widget.numero * 39) % 360).toDouble(),
+        0.65,
+        0.35,
+      ).toColor(),
+      EstiloFicha.retro => const Color(0xff314b39),
+      EstiloFicha.minimalista => colors.surfaceContainerHighest,
+    };
+    final text = switch (widget.estilo) {
+      EstiloFicha.minimalista => colors.onSurface,
+      EstiloFicha.retro => const Color(0xfff7d98b),
+      _ => Colors.white,
+    };
+    final animate =
+        widget.animaciones && !MediaQuery.disableAnimationsOf(context);
+    return Semantics(
+      button: true,
+      label: 'Ficha ${widget.numero}',
+      onTap: widget.alTocar,
+      child: ExcludeSemantics(
+        child: AnimatedScale(
+          scale: _presionada ? 0.94 : 1,
+          duration: animate ? const Duration(milliseconds: 120) : Duration.zero,
+          child: Material(
+            color: color,
+            borderRadius: BorderRadius.circular(
+              widget.estilo == EstiloFicha.retro ? 3 : 12,
+            ),
+            child: InkWell(
+              onTap: widget.alTocar,
+              onHighlightChanged: (v) => setState(() => _presionada = v),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Center(
+                  child: FittedBox(
+                    child: Text(
+                      '${widget.numero}',
+                      style: TextStyle(
+                        fontSize: 26,
+                        letterSpacing: widget.estilo == EstiloFicha.retro
+                            ? 2
+                            : 0,
+                        fontWeight: FontWeight.w700,
+                        color: text,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
