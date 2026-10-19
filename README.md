@@ -1,7 +1,8 @@
 # 15-Puzzle Flutter
 
 Microproyecto de Sistemas de Información. El juego tiene tableros 3×3, 4×4 y 5×5, récords por dificultad y preferencias guardadas en el dispositivo.
-
+**Juego Web:** [https://benezraandres-source.github.io/MicroProyectoSistemas-/](https://benezraandres-source.github.io/MicroProyectoSistemas-/)
+**Repositorio de Código Fuente:** [https://github.com/benezraandres-source/MicroProyectoSistemas-](https://github.com/benezraandres-source/MicroProyectoSistemas-)
 ## Ejecutar
 
 Se necesita **Flutter 3.47.7 con Dart 3.13.5**. Desde `flutter_application_1`:
